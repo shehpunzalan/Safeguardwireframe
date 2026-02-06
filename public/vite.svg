@@ -1,0 +1,12 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="16" cy="16" r="16" fill="#2563eb"/>
+  
+  <!-- Shield -->
+  <path d="M16 6.667L9.333 9.333V15.667C9.333 20.267 12.4 24.533 16 25.333C19.6 24.533 22.667 20.267 22.667 15.667V9.333L16 6.667Z" 
+        fill="white"/>
+  
+  <!-- Cross -->
+  <rect x="14.667" y="12" width="2.667" height="8" rx="0.667" fill="#ef4444"/>
+  <rect x="11.333" y="14.667" width="9.333" height="2.667" rx="0.667" fill="#ef4444"/>
+</svg>

@@ -6,6 +6,9 @@ import { SettingsScreen } from "@/app/components/settings-screen";
 import { EditProfileScreen, ProfileData } from "@/app/components/edit-profile-screen";
 import { EmergencyAlertScreen } from "@/app/components/emergency-alert-screen";
 import { AccessibilityProvider } from "@/app/contexts/accessibility-context";
+import { PWAInstallPrompt } from "@/app/components/pwa-install-prompt";
+import { PWAStatus } from "@/app/components/pwa-status";
+import { PWAUpdateNotification } from "@/app/components/pwa-update-notification";
 
 type Screen = "login" | "create-account" | "dashboard" | "settings" | "edit-profile" | "emergency-alert";
 
@@ -192,6 +195,11 @@ export default function App() {
             {loginError}
           </div>
         )}
+        
+        {/* PWA Install Prompt */}
+        <PWAInstallPrompt />
+        <PWAStatus />
+        <PWAUpdateNotification />
       </div>
     </AccessibilityProvider>
   );

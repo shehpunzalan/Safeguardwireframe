@@ -1,0 +1,33 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e40af;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <rect width="192" height="192" rx="42" fill="url(#bgGradient)"/>
+  
+  <!-- Shield shadow -->
+  <path d="M96 40L56 56V88C56 113.6 73.6 136.8 96 144C118.4 136.8 136 113.6 136 88V56L96 40Z" 
+        fill="black" opacity="0.1" transform="translate(0, 4)"/>
+  
+  <!-- Shield outline -->
+  <path d="M96 40L56 56V88C56 113.6 73.6 136.8 96 144C118.4 136.8 136 113.6 136 88V56L96 40Z" 
+        fill="white" opacity="0.15"/>
+  
+  <!-- Shield main -->
+  <path d="M96 48L64 60V88C64 109.6 78.4 128.8 96 136C113.6 128.8 128 109.6 128 88V60L96 48Z" 
+        fill="white"/>
+  
+  <!-- Emergency cross background circle -->
+  <circle cx="96" cy="88" r="22" fill="#2563eb"/>
+  
+  <!-- White circle for contrast -->
+  <circle cx="96" cy="88" r="18" fill="white"/>
+  
+  <!-- Red emergency cross -->
+  <rect x="91" y="73" width="10" height="30" rx="2" fill="#ef4444"/>
+  <rect x="81" y="83" width="30" height="10" rx="2" fill="#ef4444"/>
+</svg>

@@ -1,0 +1,18 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with slight gradient effect -->
+  <rect width="180" height="180" fill="#2563eb"/>
+  
+  <!-- Shield outline -->
+  <path d="M90 37.5L52.5 52.5V82.5C52.5 106.5 69 127.5 90 135C111 127.5 127.5 106.5 127.5 82.5V52.5L90 37.5Z" 
+        fill="white" opacity="0.2"/>
+  
+  <!-- Shield main -->
+  <path d="M90 45L60 56.25V82.5C60 102.75 73.5 120.75 90 127.5C106.5 120.75 120 102.75 120 82.5V56.25L90 45Z" 
+        fill="white"/>
+  
+  <!-- Emergency cross -->
+  <circle cx="90" cy="82.5" r="18.75" fill="#2563eb"/>
+  <rect x="80.625" y="73.125" width="18.75" height="18.75" rx="1.875" fill="white"/>
+  <rect x="85.3125" y="68.4375" width="9.375" height="28.125" rx="1.875" fill="#ef4444"/>
+  <rect x="75.9375" y="77.8125" width="28.125" height="9.375" rx="1.875" fill="#ef4444"/>
+</svg>
