@@ -8,7 +8,6 @@ import { EmergencyAlertScreen } from "@/app/components/emergency-alert-screen";
 import { AccessibilityProvider } from "@/app/contexts/accessibility-context";
 import { PWAInstallPrompt } from "@/app/components/pwa-install-prompt";
 import { PWAStatus } from "@/app/components/pwa-status";
-import { PWAUpdateNotification } from "@/app/components/pwa-update-notification";
 
 type Screen = "login" | "create-account" | "dashboard" | "settings" | "edit-profile" | "emergency-alert";
 
@@ -199,7 +198,6 @@ export default function App() {
         {/* PWA Install Prompt */}
         <PWAInstallPrompt />
         <PWAStatus />
-        <PWAUpdateNotification />
       </div>
     </AccessibilityProvider>
   );

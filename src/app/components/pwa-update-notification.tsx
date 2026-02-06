@@ -1,36 +1,55 @@
 import { useEffect, useState } from 'react';
-import { useRegisterSW } from 'virtual:pwa-register/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RefreshCw, X } from 'lucide-react';
 
 export function PWAUpdateNotification() {
-  const {
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
-    onRegistered(r) {
-      console.log('SW Registered:', r);
-    },
-    onRegisterError(error) {
-      console.log('SW registration error', error);
-    },
-  });
-
   const [showUpdate, setShowUpdate] = useState(false);
+  const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
-    if (needRefresh) {
-      setShowUpdate(true);
-    }
-  }, [needRefresh]);
+    // Check if service worker is supported
+    if (!('serviceWorker' in navigator)) return;
+
+    // Listen for service worker updates
+    navigator.serviceWorker.ready.then((reg) => {
+      setRegistration(reg);
+      
+      // Check for updates
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // New service worker is available
+            setShowUpdate(true);
+          }
+        });
+      });
+    });
+
+    // Check for updates every 30 minutes
+    const interval = setInterval(() => {
+      navigator.serviceWorker.ready.then((reg) => {
+        reg.update();
+      });
+    }, 30 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const handleUpdate = () => {
-    updateServiceWorker(true);
+    if (!registration?.waiting) return;
+    
+    // Tell the waiting service worker to activate
+    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    
+    // Reload the page
+    window.location.reload();
   };
 
   const handleDismiss = () => {
     setShowUpdate(false);
-    setNeedRefresh(false);
   };
 
   return (

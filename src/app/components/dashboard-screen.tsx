@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   MapPin,
   Phone,
@@ -15,6 +15,16 @@ import { ContactManagement, Contact } from "./contact-management";
 import { EmergencyRequestSent } from "./emergency-request-sent";
 import { EmergencyGuidance } from "./emergency-guidance";
 import { useAccessibility } from "@/app/contexts/accessibility-context";
+import { 
+  getEmergencyAlerts, 
+  addEmergencyAlert, 
+  updateAlertStatus, 
+  markAlertAsRead,
+  markAllAlertsAsRead,
+  getUnreadAlertsCount,
+  formatAlertTime,
+  type EmergencyAlert 
+} from "@/app/utils/emergency-alerts";
 
 interface DashboardScreenProps {
   userName: string;
@@ -41,6 +51,10 @@ export function DashboardScreen({
     { id: "3", name: "Tom Wilson", relationship: "Son", phone: "+1 (555) 333-4444" },
   ]);
   
+  // Emergency Alerts State
+  const [emergencyAlerts, setEmergencyAlerts] = useState<EmergencyAlert[]>([]);
+  const [unreadAlertCount, setUnreadAlertCount] = useState(0);
+  
   // GPS State
   const [elderlyLocation, setElderlyLocation] = useState({
     latitude: 39.7817,
@@ -52,6 +66,38 @@ export function DashboardScreen({
   });
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState("");
+
+  // Load emergency alerts for family dashboard
+  useEffect(() => {
+    if (userType === "family") {
+      loadEmergencyAlerts();
+      
+      // Poll for new alerts every 5 seconds
+      const interval = setInterval(loadEmergencyAlerts, 5000);
+      
+      // Listen for storage events (cross-tab communication)
+      const handleStorageChange = () => {
+        loadEmergencyAlerts();
+      };
+      
+      window.addEventListener('emergency-alert-added', handleStorageChange);
+      window.addEventListener('emergency-alert-updated', handleStorageChange);
+      window.addEventListener('storage', handleStorageChange);
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('emergency-alert-added', handleStorageChange);
+        window.removeEventListener('emergency-alert-updated', handleStorageChange);
+        window.removeEventListener('storage', handleStorageChange);
+      };
+    }
+  }, [userType]);
+
+  const loadEmergencyAlerts = () => {
+    const alerts = getEmergencyAlerts();
+    setEmergencyAlerts(alerts);
+    setUnreadAlertCount(getUnreadAlertsCount());
+  };
 
   const handleAddContact = (contact: Omit<Contact, "id">) => {
     const newContact: Contact = {
@@ -71,6 +117,65 @@ export function DashboardScreen({
 
   const handleEmergencyPress = () => {
     speak("Emergency button pressed. Contacting emergency services.");
+    
+    // Create emergency alert
+    const currentUser = JSON.parse(localStorage.getItem('safeguard_current_user') || '{}');
+    
+    // Get current location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          
+          addEmergencyAlert({
+            elderlyName: userName || currentUser.fullName || 'Elderly User',
+            elderlyPhone: currentUser.phoneNumber || 'Unknown',
+            status: 'active',
+            location: {
+              latitude,
+              longitude,
+              address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+            },
+            medicalInfo: {
+              bloodType: currentUser.bloodType,
+              allergies: currentUser.allergies,
+              medicalConditions: currentUser.medicalConditions,
+              currentMedications: currentUser.currentMedications
+            }
+          });
+        },
+        () => {
+          // Fallback to default location if GPS fails
+          addEmergencyAlert({
+            elderlyName: userName || currentUser.fullName || 'Elderly User',
+            elderlyPhone: currentUser.phoneNumber || 'Unknown',
+            status: 'active',
+            location: elderlyLocation,
+            medicalInfo: {
+              bloodType: currentUser.bloodType,
+              allergies: currentUser.allergies,
+              medicalConditions: currentUser.medicalConditions,
+              currentMedications: currentUser.currentMedications
+            }
+          });
+        }
+      );
+    } else {
+      // No geolocation, use default location
+      addEmergencyAlert({
+        elderlyName: userName || currentUser.fullName || 'Elderly User',
+        elderlyPhone: currentUser.phoneNumber || 'Unknown',
+        status: 'active',
+        location: elderlyLocation,
+        medicalInfo: {
+          bloodType: currentUser.bloodType,
+          allergies: currentUser.allergies,
+          medicalConditions: currentUser.medicalConditions,
+          currentMedications: currentUser.currentMedications
+        }
+      });
+    }
+    
     setShowEmergencyRequest(true);
   };
 
@@ -187,7 +292,11 @@ export function DashboardScreen({
                 className="p-2 hover:bg-blue-700 rounded-lg transition-colors relative"
               >
                 <Bell className="w-6 h-6" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                {unreadAlertCount > 0 && (
+                  <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center font-bold">
+                    {unreadAlertCount}
+                  </span>
+                )}
               </button>
               <button onClick={onLogout} className="p-2 hover:bg-blue-700 rounded-lg transition-colors">
                 <LogOut className="w-6 h-6" />
@@ -209,27 +318,49 @@ export function DashboardScreen({
               </button>
             </div>
             <div className="max-h-96 overflow-y-auto">
-              {/* Emergency Alert Notification */}
-              <button
-                onClick={() => {
-                  setShowNotifications(false);
-                  if (onEmergencyAlert) onEmergencyAlert();
-                }}
-                className="w-full p-4 border-b border-gray-200 hover:bg-red-50 transition-colors text-left"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
-                    <AlertCircle className="w-6 h-6 text-white" />
+              {/* Emergency Alerts from localStorage */}
+              {emergencyAlerts.filter(alert => alert.status === 'active').map((alert) => (
+                <button
+                  key={alert.id}
+                  onClick={() => {
+                    markAlertAsRead(alert.id);
+                    setShowNotifications(false);
+                    if (onEmergencyAlert) onEmergencyAlert();
+                  }}
+                  className={`w-full p-4 border-b border-gray-200 hover:bg-red-50 transition-colors text-left ${
+                    !alert.read ? 'bg-red-50/50' : ''
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0 animate-pulse">
+                      <AlertCircle className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-bold text-red-700">EMERGENCY ALERT</h4>
+                        {!alert.read && (
+                          <span className="w-2 h-2 bg-red-600 rounded-full"></span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-700 font-medium">
+                        {alert.elderlyName} has triggered an emergency alert
+                      </p>
+                      {alert.location && (
+                        <p className="text-xs text-gray-600 mt-1">
+                          📍 {alert.location.address}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-500 mt-1">{formatAlertTime(alert.timestamp)}</p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h4 className="font-bold text-red-700 mb-1">EMERGENCY ALERT</h4>
-                    <p className="text-sm text-gray-700">
-                      John Doe has triggered an emergency alert
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">5 minutes ago</p>
-                  </div>
+                </button>
+              ))}
+              
+              {emergencyAlerts.filter(alert => alert.status === 'active').length === 0 && (
+                <div className="p-6 text-center text-gray-500">
+                  <p className="text-sm">No active emergency alerts</p>
                 </div>
-              </button>
+              )}
 
               {/* Other notifications */}
               <div className="p-4 border-b border-gray-200">
@@ -263,21 +394,23 @@ export function DashboardScreen({
 
         {/* Content */}
         <div className="p-5 max-w-md mx-auto">
-          {/* Emergency Alert Banner */}
-          <button
-            onClick={() => {
-              if (onEmergencyAlert) onEmergencyAlert();
-            }}
-            className="w-full bg-red-500 text-white p-4 rounded-2xl mb-5 flex items-start gap-3 hover:bg-red-600 transition-colors shadow-md"
-          >
-            <AlertCircle className="w-6 h-6 flex-shrink-0 mt-0.5" />
-            <div className="text-left flex-1">
-              <h3 className="font-bold text-lg mb-1">EMERGENCY ALERT ACTIVE</h3>
-              <p className="text-sm text-red-100">
-                John Doe has triggered an emergency alert. Click the notification bell for details.
-              </p>
-            </div>
-          </button>
+          {/* Emergency Alert Banner - Only show if there are active alerts */}
+          {emergencyAlerts.filter(alert => alert.status === 'active').length > 0 && (
+            <button
+              onClick={() => {
+                if (onEmergencyAlert) onEmergencyAlert();
+              }}
+              className="w-full bg-red-500 text-white p-4 rounded-2xl mb-5 flex items-start gap-3 hover:bg-red-600 transition-colors shadow-md animate-pulse"
+            >
+              <AlertCircle className="w-6 h-6 flex-shrink-0 mt-0.5" />
+              <div className="text-left flex-1">
+                <h3 className="font-bold text-lg mb-1">EMERGENCY ALERT ACTIVE</h3>
+                <p className="text-sm text-red-100">
+                  {emergencyAlerts.filter(alert => alert.status === 'active')[0]?.elderlyName} has triggered an emergency alert. Click for details.
+                </p>
+              </div>
+            </button>
+          )}
 
           {/* Live Location */}
           <div className="bg-white rounded-2xl p-5 shadow-sm mb-5">
