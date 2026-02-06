@@ -198,7 +198,7 @@ export function SettingsScreen({ onBack, onEditProfile, currentUser }: SettingsS
               
               {showLanguageDropdown && (
                 <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden z-10">
-                  {["English", "Spanish", "French", "German", "Chinese"].map((lang) => (
+                  {["English", "Spanish", "French", "German", "Chinese", "Filipino"].map((lang) => (
                     <button
                       key={lang}
                       onClick={() => {

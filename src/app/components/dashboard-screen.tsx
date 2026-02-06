@@ -19,12 +19,13 @@ import {
   getEmergencyAlerts, 
   addEmergencyAlert, 
   updateAlertStatus, 
-  markAlertAsRead,
+  markAlertAsRead as markAlertAsReadLocal,
   markAllAlertsAsRead,
   getUnreadAlertsCount,
-  formatAlertTime,
-  type EmergencyAlert 
+  formatAlertTime as formatAlertTimeLocal,
+  type EmergencyAlert as LocalEmergencyAlert 
 } from "@/app/utils/emergency-alerts";
+import * as AlertsAPI from "@/app/api/emergency-alerts-api";
 
 interface DashboardScreenProps {
   userName: string;
@@ -52,7 +53,7 @@ export function DashboardScreen({
   ]);
   
   // Emergency Alerts State
-  const [emergencyAlerts, setEmergencyAlerts] = useState<EmergencyAlert[]>([]);
+  const [emergencyAlerts, setEmergencyAlerts] = useState<LocalEmergencyAlert[]>([]);
   const [unreadAlertCount, setUnreadAlertCount] = useState(0);
   
   // GPS State
@@ -93,10 +94,38 @@ export function DashboardScreen({
     }
   }, [userType]);
 
-  const loadEmergencyAlerts = () => {
-    const alerts = getEmergencyAlerts();
-    setEmergencyAlerts(alerts);
-    setUnreadAlertCount(getUnreadAlertsCount());
+  const loadEmergencyAlerts = async () => {
+    // Get current user to use as family member ID
+    const currentUser = JSON.parse(localStorage.getItem('safeguard_current_user') || '{}');
+    const familyMemberId = `user:${currentUser.phoneNumber}`;
+    
+    try {
+      // Try to fetch from backend first
+      const backendAlerts = await AlertsAPI.getActiveAlertsForFamilyMember(familyMemberId);
+      
+      // Convert backend alerts to local format
+      const convertedAlerts: LocalEmergencyAlert[] = backendAlerts.map(alert => ({
+        id: alert.id,
+        elderlyName: alert.elderlyName,
+        elderlyPhone: alert.elderlyPhone,
+        timestamp: alert.timestamp,
+        status: alert.status,
+        location: alert.location,
+        medicalInfo: alert.medicalInfo,
+        read: alert.readBy.includes(familyMemberId)
+      }));
+      
+      setEmergencyAlerts(convertedAlerts);
+      setUnreadAlertCount(convertedAlerts.filter(a => !a.read).length);
+      
+      console.log(`Loaded ${backendAlerts.length} alerts from backend`);
+    } catch (error) {
+      console.error('Failed to load alerts from backend, using localStorage:', error);
+      // Fallback to localStorage
+      const alerts = getEmergencyAlerts();
+      setEmergencyAlerts(alerts);
+      setUnreadAlertCount(getUnreadAlertsCount());
+    }
   };
 
   const handleAddContact = (contact: Omit<Contact, "id">) => {
@@ -115,65 +144,68 @@ export function DashboardScreen({
     setContacts(contacts.filter((c) => c.id !== id));
   };
 
-  const handleEmergencyPress = () => {
+  const handleEmergencyPress = async () => {
     speak("Emergency button pressed. Contacting emergency services.");
     
     // Create emergency alert
     const currentUser = JSON.parse(localStorage.getItem('safeguard_current_user') || '{}');
+    const elderlyPhone = currentUser.phoneNumber || 'Unknown';
+    const elderlyName = userName || currentUser.fullName || 'Elderly User';
+    const elderlyEmail = currentUser.email || '';
+    const elderlyUserId = `user:${elderlyPhone}`;
     
-    // Get current location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          
-          addEmergencyAlert({
-            elderlyName: userName || currentUser.fullName || 'Elderly User',
-            elderlyPhone: currentUser.phoneNumber || 'Unknown',
-            status: 'active',
-            location: {
-              latitude,
-              longitude,
-              address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
-            },
-            medicalInfo: {
-              bloodType: currentUser.bloodType,
-              allergies: currentUser.allergies,
-              medicalConditions: currentUser.medicalConditions,
-              currentMedications: currentUser.currentMedications
-            }
-          });
-        },
-        () => {
-          // Fallback to default location if GPS fails
-          addEmergencyAlert({
-            elderlyName: userName || currentUser.fullName || 'Elderly User',
-            elderlyPhone: currentUser.phoneNumber || 'Unknown',
-            status: 'active',
-            location: elderlyLocation,
-            medicalInfo: {
-              bloodType: currentUser.bloodType,
-              allergies: currentUser.allergies,
-              medicalConditions: currentUser.medicalConditions,
-              currentMedications: currentUser.currentMedications
-            }
-          });
-        }
-      );
-    } else {
-      // No geolocation, use default location
-      addEmergencyAlert({
-        elderlyName: userName || currentUser.fullName || 'Elderly User',
-        elderlyPhone: currentUser.phoneNumber || 'Unknown',
-        status: 'active',
-        location: elderlyLocation,
+    const createAlert = (location: any) => {
+      const alertData = {
+        elderlyName,
+        elderlyPhone,
+        status: 'active' as const,
+        location,
         medicalInfo: {
           bloodType: currentUser.bloodType,
           allergies: currentUser.allergies,
           medicalConditions: currentUser.medicalConditions,
           currentMedications: currentUser.currentMedications
         }
+      };
+      
+      // Save to localStorage (local backup)
+      addEmergencyAlert(alertData);
+      
+      // Send to Supabase backend for cross-device sync
+      AlertsAPI.createEmergencyAlert(
+        elderlyUserId,
+        elderlyName,
+        elderlyPhone,
+        elderlyEmail,
+        location,
+        alertData.medicalInfo
+      ).then(() => {
+        console.log('Emergency alert sent to backend successfully');
+      }).catch((error) => {
+        console.error('Failed to send emergency alert to backend:', error);
+        // Alert still saved locally, so app continues to work
       });
+    };
+    
+    // Get current location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          createAlert({
+            latitude,
+            longitude,
+            address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+          });
+        },
+        () => {
+          // Fallback to default location if GPS fails
+          createAlert(elderlyLocation);
+        }
+      );
+    } else {
+      // No geolocation, use default location
+      createAlert(elderlyLocation);
     }
     
     setShowEmergencyRequest(true);
@@ -323,7 +355,7 @@ export function DashboardScreen({
                 <button
                   key={alert.id}
                   onClick={() => {
-                    markAlertAsRead(alert.id);
+                    markAlertAsReadLocal(alert.id);
                     setShowNotifications(false);
                     if (onEmergencyAlert) onEmergencyAlert();
                   }}
@@ -350,7 +382,7 @@ export function DashboardScreen({
                           📍 {alert.location.address}
                         </p>
                       )}
-                      <p className="text-xs text-gray-500 mt-1">{formatAlertTime(alert.timestamp)}</p>
+                      <p className="text-xs text-gray-500 mt-1">{formatAlertTimeLocal(alert.timestamp)}</p>
                     </div>
                   </div>
                 </button>

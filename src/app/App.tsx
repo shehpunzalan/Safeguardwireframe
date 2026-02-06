@@ -8,8 +8,9 @@ import { EmergencyAlertScreen } from "@/app/components/emergency-alert-screen";
 import { AccessibilityProvider } from "@/app/contexts/accessibility-context";
 import { PWAInstallPrompt } from "@/app/components/pwa-install-prompt";
 import { PWAStatus } from "@/app/components/pwa-status";
+import { FamilyLinkSetup } from "@/app/components/family-link-setup";
 
-type Screen = "login" | "create-account" | "dashboard" | "settings" | "edit-profile" | "emergency-alert";
+type Screen = "login" | "create-account" | "dashboard" | "settings" | "edit-profile" | "emergency-alert" | "family-link-setup";
 
 interface User {
   fullName: string;
@@ -55,6 +56,19 @@ export default function App() {
     if (account) {
       setCurrentUser(account);
       localStorage.setItem("safeguard_current_user", JSON.stringify(account));
+      
+      // Check if family member needs to complete setup
+      if (userType === "family") {
+        const setupDone = localStorage.getItem('safeguard_family_link_setup_done');
+        const setupSkipped = localStorage.getItem('safeguard_family_link_setup_skipped');
+        
+        if (!setupDone && !setupSkipped) {
+          setCurrentScreen("family-link-setup");
+          setLoginError("");
+          return;
+        }
+      }
+      
       setCurrentScreen("dashboard");
       setLoginError("");
     } else {
@@ -185,6 +199,13 @@ export default function App() {
             medicalConditions={["Diabetes Type 2", "Arrhythmia", "High Blood Pressure"]}
             medications={["Lisinopril 10mg (daily)", "Metformin 500mg (twice daily)"]}
             onBack={() => setCurrentScreen("dashboard")}
+          />
+        )}
+        {currentScreen === "family-link-setup" && currentUser && (
+          <FamilyLinkSetup
+            familyPhone={currentUser.phoneNumber}
+            onComplete={() => setCurrentScreen("dashboard")}
+            onSkip={() => setCurrentScreen("dashboard")}
           />
         )}
         
